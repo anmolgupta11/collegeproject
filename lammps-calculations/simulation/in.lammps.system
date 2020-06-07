@@ -13,17 +13,17 @@ mass 1 1  # mass is always 1 in reduced unit
 
 # POTENTIAL
 pair_style lj/cut 3.0
-pair_coeff 1 1 0.1 1.0 # sigma is always 1.0 and the length unit of the system.
+pair_coeff 1 1 0.3 1.0 # sigma is always 1.0 and the length unit of the system.
 
 timestep 0.001
 
 variable nAtoms equal atoms
-variable Nrun equal 2000000
+variable Nrun equal 500000
 variable Ne equal 10
 variable Nr_rdf equal 0.5*${Nrun}/${Ne}
 
 minimize 1.0e-4 1.0e-6 100 10000
-variable  temp  equal 1.0
+variable  temp  equal 0.3
 variable tdump equal 1.0
 
 fix 1 all npt temp ${temp} ${temp} ${tdump} iso 1.0 1.0 10.0
