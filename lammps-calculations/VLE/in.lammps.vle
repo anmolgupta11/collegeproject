@@ -1,0 +1,54 @@
+# Input script to produce Vapor-liquid phase diagram of LJ fluid
+
+units lj        # real # i.e. reduced units
+dimension 3
+atom_style atomic
+
+# CREATE BOX
+lattice fcc 0.8854 
+region 1 block -60 60 -20 20 -20 20
+create_box 1 1
+region liq block -20 20 INF INF INF INF units box
+create_atoms 1 region liq
+
+mass 1 1        # mass is always 1 in reduced unit
+
+# INTERACTION POTENTIALs
+pair_style lj/cut 2.5
+pair_coeff 1 1 0.3 1.0 
+
+timestep 0.005
+variable xbin equal 0.05
+variable nAtoms equal atoms
+variable Nrun equal 1000000
+variable Ne equal 100
+variable Nr_rdf equal 0.5*${Nrun}/${Ne}
+variable tdump equal 1.0 # ~200 times of timestep
+
+label   temperatureloop
+variable t loop 10
+variable  temp  equal 0.15+($t-1)*0.02
+
+#OUTPUT
+# density profile
+compute denprof all chunk/atom bin/1d x center ${xbin}
+fix     denprof all ave/chunk 100 1000 500000 denprof density/number file out.profile.density.${temp}.data
+
+#OUTPUT
+log   log.lammps.${temp}
+thermo 1000
+thermo_style custom step temp press pe etotal enthalpy pxx pyy pzz
+dump 		trj all atom 500 out.sys_nvt.${temp}.lammpstrj
+restart out.restart1.${temp} out.restart2.${temp}
+
+fix intg all nvt temp ${temp} ${temp} ${tdump}
+run ${Nrun}
+
+write_restart 	out.restart.sys.final.${temp}
+unfix intg
+undump  trj
+uncompute denprof
+unfix   denprof
+
+next    t
+jump    SELF temperatureloop
