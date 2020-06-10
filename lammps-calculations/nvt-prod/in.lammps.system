@@ -13,7 +13,7 @@ mass 1 1  # mass is always 1 in reduced unit
 
 # POTENTIAL
 pair_style lj/cut 3.0
-pair_coeff 1 1 0.3 1.0 # sigma is always 1.0 and the length unit of the system.
+pair_coeff 1 1 1.0 1.0 # sigma is always 1.0 and the length unit of the system.
 
 timestep 0.001
 
@@ -43,14 +43,14 @@ unfix 1
 fix 1 all nvt temp ${temp} ${temp} ${tdump}
 
 compute rdf all rdf 1000 1 1
-fix rdf all ave/time ${Ne} ${Nr_rdf} ${Nrun} c_rdf[*] file system_nvt.rdf mode vector
+fix rdf all ave/time ${Ne} ${Nr_rdf} ${Nrun} c_rdf[*] file system_nvt1.rdf mode vector
 
 compute msd all msd average yes
 
 #OUTPUT
 thermo 1000
 thermo_style custom step temp press vol density pe c_msd[4]
-dump 		trj all atom 500 sys_nvt.lammpstrj
+dump 		trj all atom 500 sys_nvt1.lammpstrj
 
 run ${Nrun}
 
