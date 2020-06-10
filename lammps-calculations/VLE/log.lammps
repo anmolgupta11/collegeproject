@@ -1,0 +1,52 @@
+LAMMPS (7 Aug 2019)
+OMP_NUM_THREADS environment is not set. Defaulting to 1 thread. (../comm.cpp:93)
+  using 1 OpenMP thread(s) per MPI task
+# Input script to produce Vapor-liquid phase diagram of LJ fluid
+
+units lj        # real # i.e. reduced units
+dimension 3
+atom_style atomic
+
+# CREATE BOX
+lattice fcc 0.8854
+Lattice spacing in x,y,z = 1.65313 1.65313 1.65313
+region 1 block -30 30 -10 10 -10 10
+create_box 1 1
+Created orthogonal box = (-49.5939 -16.5313 -16.5313) to (49.5939 16.5313 16.5313)
+  1 by 1 by 1 MPI processor grid
+region liq block -10 10 INF INF INF INF units box
+create_atoms 1 region liq
+Created 20000 atoms
+  create_atoms CPU = 0.003824 secs
+
+mass 1 1        # mass is always 1 in reduced unit
+
+# INTERACTION POTENTIALs
+pair_style lj/cut 2.5
+pair_coeff 1 1 0.3 1.0
+
+timestep 0.005
+variable xbin equal 0.05
+variable nAtoms equal atoms
+variable Nrun equal 1000000
+variable Ne equal 100
+variable Nr_rdf equal 0.5*${Nrun}/${Ne}
+variable Nr_rdf equal 0.5*1000000/${Ne}
+variable Nr_rdf equal 0.5*1000000/100
+variable tdump equal 1.0 # ~200 times of timestep
+
+label   temperatureloop
+variable t loop 10
+variable  temp  equal 0.1+($t-1)*0.1
+variable  temp  equal 0.1+(1-1)*0.1
+
+#OUTPUT
+# density profile
+compute denprof all chunk/atom bin/1d x center ${xbin}
+compute denprof all chunk/atom bin/1d x center 0.05
+fix     denprof all ave/chunk 100 1000 500000 denprof density/number file out.profile.density.${temp}.data
+fix     denprof all ave/chunk 100 1000 500000 denprof density/number file out.profile.density.0.1.data
+
+#OUTPUT
+log   log.lammps.${temp}
+log   log.lammps.0.1
