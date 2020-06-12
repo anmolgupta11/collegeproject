@@ -1,0 +1,117 @@
+# LAMMPS input script for water in NPT ensamble
+
+units 		real
+dimension	3
+atom_style 	full
+read_data 	water.lammpsdata
+include 	forcefield.data
+
+replicate 	25 20 20 
+
+change_box	all x final -100 100
+displace_atoms	all move x -37.5 0 0 units box
+
+variable 	xbin 	equal 0.05
+variable 	Nrun 	equal 500000
+variable 	Nf 	equal ${Nrun}/10
+variable 	Ne 	equal 100
+variable 	Nr 	equal ${Nf}/${Ne}
+variable 	Ndump 	equal ${Nrun}/2
+variable 	Nr_rdf 	equal 0.5*${Nrun}/${Ne}
+
+variable 	watMoleMass 	equal 18.0153 # /(g/mol)
+variable 	nAvog 		equal 6.0221415e23 # Avogadro's number
+variable 	watMoleculeMass equal (${watMoleMass}/${nAvog}) # /(g/molecule)
+variable 	A3_in_cm3 	equal 1e-24 # Angstrom^3 in cm^3
+variable 	nAtoms 		equal atoms
+variable 	nMolecules 	equal v_nAtoms/3
+
+variable 	Pext equal 1.0
+
+group hydrogen 	type 1
+group oxygen 	type 2
+
+# Loop for temperatures
+label   	temperatureloop
+variable 	t loop 10
+variable  	Text  equal 300+($t-1)*30
+
+velocity 	all create ${Text} 1234
+
+neighbor 	2.0 bin
+neigh_modify 	every 1 delay 0 check yes
+
+timestep 	0.005
+
+fix 		constrain all shake 1.0e-4 100 0 b 1 a 1
+fix 		integrate all nvt temp ${Text} ${Text} 100.0 #iso ${Pext} ${Pext} 1000.0
+fix 		removeMomentum all momentum 1 linear 1 1 1
+
+compute 	T all temp
+fix 		TempAve all ave/time ${Ne} ${Nr} ${Nf} c_T 
+
+variable 	P equal press
+fix 		PressAve all ave/time ${Ne} ${Nr} ${Nf} v_P
+
+compute 	PE all pe pair kspace
+variable 	PE_Mol equal c_PE/v_nMolecules
+fix 		PEAve_Mol all ave/time ${Ne} ${Nr} ${Nf} v_PE_Mol
+
+variable 	Dens equal v_nMolecules*${watMoleculeMass}/(vol*${A3_in_cm3})
+fix 		DensAve all ave/time ${Ne} ${Nr} ${Nf} v_Dens file wat.dens
+
+compute	msd oxygen msd com yes
+fix 		msd oxygen ave/time 1 1 500 c_msd[4] file wat.${Text}.msd
+
+compute 	rdf all rdf 1000 2 2 # oxygen-oxygen
+fix 		rdf all ave/time ${Ne} ${Nr_rdf} ${Nrun} c_rdf[*] file wat.${Text}.rdf mode vector
+
+# -------
+# add density profile calculation command
+compute denprofoxygen oxygen chunk/atom bin/1d x center ${xbin}
+fix     denprofoxygen oxygen ave/chunk 100 1000 500000 denprofoxygen density/number file out.profile.oxygen.${Text}.data
+
+compute denprofhydrogen hydrogen chunk/atom bin/1d x center ${xbin}
+fix     denprofhydrogen hydrogen ave/chunk 100 1000 500000 denprofhydrogen density/number file out.profile.hydrogen.${Text}.data
+
+
+# Surface tension calculations
+variable        pxx equal c_thermo_press[1]
+variable        pyy equal c_thermo_press[2]
+variable        pzz equal c_thermo_press[3]
+variable        tension equal 0.5*lx*(v_pxx-0.5*(v_pyy+v_pzz)) #*4.11/(v_lfac*v_lfac)
+fix             sigma all ave/time 1 1000 1000 v_tension
+
+log   log.lammps.${Text}
+thermo_style 	custom step temp f_TempAve press f_PressAve f_PEAve_Mol f_DensAve f_sigma 
+thermo_modify 	flush yes
+thermo 		${Nf}
+
+dump 		trj all atom ${Ndump} water_nvt.lammpstrj
+
+run ${Nrun}
+
+write_restart 	out.restart.sys.final.${Text}
+Unfix constrain
+unfix integrate
+unfix removeMomentum
+uncompute T
+unfix TempAve
+unfix PressAve
+uncompute PE
+unfix PEAve_Mol
+unfix DensAve
+uncompute msd
+unfix msd
+uncompute rdf
+unfix rdf
+uncompute denprofoxygen
+unfix denprofoxygen
+uncompute denprofhydrogen
+unfix denprofhydrogen
+unfix sigma
+undump trj
+
+next    t
+jump    SELF temperatureloop
+
